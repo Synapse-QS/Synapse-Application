@@ -36,9 +36,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import coil.request.videoFramePercent
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
+import coil3.video.videoFramePercent
 import com.synapse.social.studioasinc.R
 import com.synapse.social.studioasinc.feature.shared.theme.BatchMediaCardMetrics
 import com.synapse.social.studioasinc.feature.shared.theme.Sizes

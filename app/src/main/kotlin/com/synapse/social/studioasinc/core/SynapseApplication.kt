@@ -1,14 +1,17 @@
 package com.synapse.social.studioasinc.core
 
 import android.app.Application
+import android.content.Context
 import android.graphics.BitmapFactory
 import android.graphics.drawable.BitmapDrawable
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
-import coil.ImageLoader
-import coil.ImageLoaderFactory
-import coil.decode.VideoFrameDecoder
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.asImage
+import coil3.svg.SvgDecoder
+import coil3.video.VideoFrameDecoder
 import dagger.hilt.android.HiltAndroidApp
 import com.synapse.social.studioasinc.data.remote.services.SupabaseAuthenticationService
 import com.synapse.social.studioasinc.data.remote.services.AuthDevelopmentUtils
@@ -42,7 +45,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.SupervisorJob
 
 @HiltAndroidApp
-class SynapseApplication : Application(), ImageLoaderFactory {
+class SynapseApplication : Application(), SingletonImageLoader.Factory {
 
     companion object {
         lateinit var instance: SynapseApplication
@@ -51,7 +54,7 @@ class SynapseApplication : Application(), ImageLoaderFactory {
 
     @Inject lateinit var notificationRepository: NotificationRepository
 
-    override fun newImageLoader(): ImageLoader {
+    override fun newImageLoader(context: Context): ImageLoader {
         val placeholder = BitmapDrawable(
             resources,
             BitmapFactory.decodeResource(resources, R.raw.placeholder)
@@ -72,10 +75,13 @@ class SynapseApplication : Application(), ImageLoaderFactory {
             )
             .build()
 
-        return ImageLoader.Builder(this)
-            .okHttpClient(okHttpClient)
-            .placeholder(placeholder)
-            .components { add(VideoFrameDecoder.Factory()) }
+        return ImageLoader.Builder(context)
+            .components {
+                add(coil3.network.okhttp.OkHttpNetworkFetcherFactory(callFactory = { okHttpClient }))
+                add(VideoFrameDecoder.Factory())
+                add(SvgDecoder.Factory())
+            }
+            .placeholder(placeholder.asImage())
             .build()
     }
 
