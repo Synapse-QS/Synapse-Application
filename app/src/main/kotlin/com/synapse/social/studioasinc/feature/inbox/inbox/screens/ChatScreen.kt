@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -34,13 +35,16 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.synapse.social.studioasinc.R
 import com.synapse.social.studioasinc.core.media.VoicePlayerManager
+import com.synapse.social.studioasinc.feature.auth.ui.util.AnimationUtil
 import com.synapse.social.studioasinc.feature.inbox.inbox.ChatViewModel
 import com.synapse.social.studioasinc.feature.inbox.inbox.components.*
 import com.synapse.social.studioasinc.feature.inbox.inbox.models.ChatListItem
 import com.synapse.social.studioasinc.feature.inbox.inbox.voice.VoiceAction
 import com.synapse.social.studioasinc.feature.inbox.inbox.voice.VoiceRecorder
 import com.synapse.social.studioasinc.feature.inbox.inbox.voice.VoiceRecordingController
+import com.synapse.social.studioasinc.feature.inbox.inbox.voice.VoiceRecordingAmbientGlow
 import com.synapse.social.studioasinc.feature.inbox.inbox.voice.VoiceState
+import com.synapse.social.studioasinc.feature.inbox.inbox.voice.VoiceGestureConfig
 import com.synapse.social.studioasinc.feature.inbox.inbox.voice.VoiceUploadService
 import com.synapse.social.studioasinc.feature.shared.components.LinkPreviewViewModel
 import com.synapse.social.studioasinc.feature.shared.components.picker.PickedFile
@@ -65,37 +69,17 @@ import java.io.File
         onNavigateToProduct: (String) -> Unit = {},
         viewModel: ChatViewModel = hiltViewModel()
     ) {
+    val reducedMotion = AnimationUtil.rememberReducedMotion()
+
     // Initialize the ViewModel with the chat ID
     LaunchedEffect(chatId, participantId) {
         viewModel.initialize(chatId, participantId)
     }
 
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    var isFirstResume by rememberSaveable { mutableStateOf(true) }
-    DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            when (event) {
-                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> {
-                    viewModel.onVisibilityChanged(true)
-                    if (isFirstResume) {
-                        isFirstResume = false
-                    } else {
-                        viewModel.restartSubscriptions()
-                        viewModel.refreshMessages()
-                    }
-                }
-                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> {
-                    viewModel.onVisibilityChanged(false)
-                }
-                else -> {}
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            viewModel.onVisibilityChanged(false)
-        }
-    }
+
+
+
+
 
     val messages by viewModel.messages.collectAsState()
     val chatItems by viewModel.chatItems.collectAsState()
@@ -143,6 +127,7 @@ import java.io.File
     var batchViewerInitialIndex by remember { mutableIntStateOf(0) }
 
     val listState = rememberLazyListState()
+    var composerHeightPx by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val focusManager = LocalFocusManager.current
@@ -150,12 +135,11 @@ import java.io.File
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
 
-    val cancelThresholdPx = with(density) { 100.dp.toPx() }
-    val lockThresholdPx = with(density) { 120.dp.toPx() }
-    val directionSlopPx = with(density) { 12.dp.toPx() }
-
-    var selectedMediaFiles by remember { mutableStateOf<List<PickedFile>?>(null) }
-
+    val gestureConfig = remember { VoiceGestureConfig() }
+    val cancelThresholdPx = with(density) { gestureConfig.cancelThresholdDp.dp.toPx() }
+    val lockThresholdPx = with(density) { gestureConfig.lockThresholdDp.dp.toPx() }
+    val directionSlopPx = with(density) { gestureConfig.directionSlopDp.dp.toPx() }
+    val composerHeight = with(density) { composerHeightPx.toDp() }
     // Voice Recording Infrastructure
     val voiceRecorder = remember { VoiceRecorder(context) }
     val voicePlayerManager = remember { VoicePlayerManager(context.applicationContext) }
@@ -170,11 +154,44 @@ import java.io.File
             onSendVoiceMessage = { audioFile, durationMs, onResult ->
                 viewModel.uploadVoiceMessage(audioFile, durationMs, onResult)
             },
+            gestureConfig = gestureConfig,
             cancelThresholdPx = cancelThresholdPx,
             lockThresholdPx = lockThresholdPx,
             directionSlopPx = directionSlopPx
         )
     }
+
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var isFirstResume by rememberSaveable { mutableStateOf(true) }
+    DisposableEffect(lifecycleOwner, voiceController) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> {
+                    viewModel.onVisibilityChanged(true)
+                    if (isFirstResume) {
+                        isFirstResume = false
+                    } else {
+                        viewModel.restartSubscriptions()
+                        viewModel.refreshMessages()
+                    }
+                }
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> {
+                    viewModel.onVisibilityChanged(false)
+                    voiceController.onPauseBackground()
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.onVisibilityChanged(false)
+        }
+    }
+
+    val messageListBottomPadding = maxOf(Sizes.WidthLarge, composerHeight + Spacing.Small)
+
+    var selectedMediaFiles by remember { mutableStateOf<List<PickedFile>?>(null) }
 
     LaunchedEffect(cancelThresholdPx, lockThresholdPx, directionSlopPx) {
         voiceController.updateThresholds(cancelThresholdPx, lockThresholdPx, directionSlopPx)
@@ -324,6 +341,7 @@ import java.io.File
                         modifier = Modifier.graphicsLayer { alpha = if (listReady || messages.isEmpty()) 1f else 0f },
                         chatItems = chatItems,
                         messages = messages,
+                        bottomContentPadding = messageListBottomPadding,
                         currentUserId = currentUserId,
                         selectedMessageIds = selectedMessageIds,
                         chatFontScale = chatFontScale,
@@ -398,15 +416,29 @@ import java.io.File
                     )
             )
 
+            if (voiceState is VoiceState.Recording || voiceState is VoiceState.Locked) {
+                VoiceRecordingAmbientGlow(
+                    voiceState = voiceState,
+                    reducedMotionOverride = reducedMotion,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        // Project design decision (not an M3 token): keep spill local to the composer and nearby bubbles.
+                        .height(184.dp)
+                )
+            }
+
             // Redesigned Voice Input Bar & Host
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .onSizeChanged { composerHeightPx = it.height }
             ) {
                 ChatInputBar(
                     replyingToMessage = replyingToMessage,
                     editingMessage = editingMessage,
                     smartReplies = smartReplies,
+                    reducedMotion = reducedMotion,
                     inputText = inputText,
                     canSendMessage = canSendMessage,
                     currentUserId = currentUserId,

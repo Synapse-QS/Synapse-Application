@@ -44,6 +44,17 @@ class VoiceRecordingController(
     private var pausedAccumulatedDurationMs = 0L
     private var pauseStartTime = 0L
     private var pendingPermissionIntent = false
+    private var releaseHandled = false
+
+    fun onPauseBackground() {
+        val currentState = _state.value
+        if (currentState is VoiceState.Recording) {
+            lockRecording()
+            togglePause()
+        } else if (currentState is VoiceState.Locked && !currentState.isPaused) {
+            togglePause()
+        }
+    }
 
     fun updateThresholds(cancelPx: Float, lockPx: Float, slopPx: Float) {
         if (cancelPx > 0f) cancelThresholdPx = cancelPx
@@ -64,6 +75,7 @@ class VoiceRecordingController(
                 }
             }
             VoiceAction.StartRecording -> {
+                releaseHandled = false
                 onPressDown()
             }
             is VoiceAction.Dragged -> {
@@ -71,6 +83,19 @@ class VoiceRecordingController(
             }
             VoiceAction.ReleaseRecording -> {
                 handleRelease()
+            }
+            VoiceAction.PointerGestureInterrupted -> {
+                when (_state.value) {
+                    is VoiceState.Pressing -> {
+                        holdJob?.cancel()
+                        holdJob = null
+                        releaseHandled = true
+                        _state.value = VoiceState.Normal
+                    }
+                    is VoiceState.Recording -> cancelRecording()
+                    // A successful lock disposes the drag recognizer by design; do not cancel the recorder.
+                    else -> Unit
+                }
             }
             VoiceAction.CancelRecording -> {
                 when (_state.value) {
@@ -215,43 +240,58 @@ class VoiceRecordingController(
             .takeIf { gestureDirection == GestureDirection.Cancel } ?: 0f
         val lockProgress = (upDistance / lockThresholdPx).coerceIn(0f, 1f)
             .takeIf { gestureDirection == GestureDirection.Lock } ?: 0f
-        val isArmed = gestureDirection == GestureDirection.Cancel && leftDistance >= cancelThresholdPx
+        // Commit cancellation as soon as the normalized drag reaches its threshold; release is not required.
+        if (gestureDirection == GestureDirection.Cancel && leftDistance >= cancelThresholdPx) {
+            cancelRecording()
+            return
+        }
 
-        // Vertical commitment occurs once; the controller changes to Locked and ignores later release.
+        // A successful lock commits once and subsequent pointer events are ignored in Locked mode.
         if (gestureDirection == GestureDirection.Lock && upDistance >= lockThresholdPx) {
             lockRecording()
             return
         }
 
-        if (isArmed != currentState.isArmedForCancel) onHapticPerform()
-
         _state.value = currentState.copy(
             slideOffsetPx = cancelOffset,
             dragOffsetYPx = lockOffset,
-            isArmedForCancel = isArmed,
             cancelProgress = cancelProgress,
-            lockProgress = lockProgress
+            lockProgress = lockProgress,
         )
     }
 
     private fun handleRelease() {
+        if (releaseHandled) return
+        releaseHandled = true
         val currentState = _state.value
         if (currentState is VoiceState.Pressing) {
             holdJob?.cancel()
             holdJob = null
-            // Single tap: start recording immediately and lock it into locked recording state
-            startActualRecording()
-            lockRecording()
+            // Single tap only if pointer was not moved significantly
+            if (abs(cumulativeX) < 15f && abs(cumulativeY) < 15f) {
+                startActualRecording()
+                lockRecording()
+            } else {
+                _state.value = VoiceState.Normal
+            }
             return
         }
 
         if (currentState is VoiceState.Recording) {
-            if (currentState.isArmedForCancel) {
-                cancelRecording()
-            } else {
-                finishRecordingToDraft()
-            }
+            finishRecordingToDraft()
         }
+    }
+
+    private fun returnFromAbandonedSlide(currentState: VoiceState.Recording) {
+        gestureDirection = GestureDirection.Undecided
+        cumulativeX = 0f
+        cumulativeY = 0f
+        _state.value = currentState.copy(
+            slideOffsetPx = 0f,
+            dragOffsetYPx = 0f,
+            cancelProgress = 0f,
+            lockProgress = 0f
+        )
     }
 
     private fun cancelRecording() {
@@ -264,12 +304,14 @@ class VoiceRecordingController(
             voiceRecorder.cancel()
         } catch (_: Exception) {}
         onHapticPerform()
+        releaseHandled = true
         _state.value = VoiceState.Normal
     }
 
     private fun lockRecording() {
         val currentState = _state.value
         if (currentState is VoiceState.Recording) {
+            releaseHandled = true
             onHapticPerform()
             _state.value = VoiceState.Locked(
                 durationMs = currentState.durationMs,
@@ -465,9 +507,19 @@ class VoiceRecordingController(
                 delay(60)
                 val elapsed = timeProvider.currentTimeMillis() - recordingStartTime - pausedAccumulatedDurationMs
 
-                val maxExpectedAmp = 28000f
-                val targetNormAmp = (lastRawAmplitude / maxExpectedAmp).coerceIn(0.08f, 1f)
-                smoothedAmplitude = smoothedAmplitude * 0.65f + targetNormAmp * 0.35f
+                // Perceptual logarithmic scaling (dB-like curve) for high audio reactivity
+                val rawNormalized = (lastRawAmplitude / 32767f).coerceIn(0f, 1f)
+                val dbNormalized = if (rawNormalized > 0f) {
+                    (kotlin.math.log10(1f + 19f * rawNormalized) / kotlin.math.log10(20f)).coerceIn(0f, 1f)
+                } else 0f
+
+                val targetAmp = (0.08f + 0.92f * dbNormalized).coerceIn(0.08f, 1f)
+                // Fast attack for immediate speech response, smooth release for natural fluid decay
+                smoothedAmplitude = if (targetAmp > smoothedAmplitude) {
+                    smoothedAmplitude * 0.20f + targetAmp * 0.80f
+                } else {
+                    smoothedAmplitude * 0.88f + targetAmp * 0.12f
+                }
 
                 _state.update { current ->
                     when (current) {
