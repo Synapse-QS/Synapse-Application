@@ -292,6 +292,9 @@ private fun ProfileActionButtons(
     )
 
     ButtonGroup(
+        overflowIndicator = { menuState ->
+            ButtonGroupDefaults.OverflowIndicator(menuState = menuState)
+        },
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(Spacing.Small),
         verticalAlignment = Alignment.CenterVertically
