@@ -1,6 +1,6 @@
 # ADR 0001: Secure group chat and collaboration — E2EE architecture
 
-**Status:** Phase 0 decision recorded (autonomous engineering recommendation); **NO-GO** for production implementation or activation. **Selected protocol direction:** IETF MLS (RFC 9420). **Production implementation:** none selected. This is not a security audit or a claim that current E2EE paths are safe.
+**Status:** Phase 0 decision recorded (autonomous engineering recommendation); **NO-GO** for production implementation or activation. **Selected protocol direction:** IETF MLS (RFC 9420). **Lead library candidate for qualification:** OpenMLS. **Production library:** none selected. This is not a security audit of Synapse's integration or a claim that current E2EE paths are safe.
 
 **Repository snapshot reviewed:** main at e5020efeddacc44a6e7a4c00964178052140e1d0. The ADR separates observed repository state from roadmap requirements and external library documentation.
 
@@ -14,7 +14,9 @@
 ## Decision
 
 - Select the IETF MLS standard (RFC 9420) as the group-protocol direction. Its asynchronous group key establishment, forward secrecy, and post-compromise security fit the membership/epoch problem better than the current per-recipient 1:1 approach.
-- Do not select a production implementation library or enable new E2EE group content now. Based on reviewed primary documentation, neither shortlisted Rust candidate currently meets the evidence bar for production Android+iOS support plus independent review: OpenMLS lists mobile targets as built but unsupported/not tested; mls-rs has a UniFFI wrapper but explicitly lacks a full third-party security audit and its production mobile support is not established.
+- Select OpenMLS as the lead library candidate for qualification only, not as an approved production dependency. SRLabs completed an independent assessment of core OpenMLS crates, but the report explicitly excludes the cryptographic and storage providers and the proof-of-concept client/delivery service; it therefore does not audit Synapse's native bindings, provider/storage implementations, delivery service, or app integration. The OpenMLS README lists Android/iOS as unsupported-but-built, not tested supported targets. The user's no-tests constraint prevents the mobile interop/adversarial verification needed to close that gap.
+- Keep mls-rs as a secondary candidate only if OpenMLS cannot meet the integration requirements. Its UniFFI wrapper is evidence of generated-language bindings, not production mobile support; its README says it has not received a full third-party security audit.
+- Do not enable new E2EE group content or begin dependent Phase 1 implementation until the selected release, platform integration, backend boundaries, and security verification are qualified.
 - Record this as an evidence-based blocker and stop dependent rollout. Reopen library selection only after a candidate demonstrates maintained, supported Android+iOS artifacts, storage/FFI behavior, license approval, and independent review scope for the exact shipped build.
 - Evaluate OpenMLS and mls-rs as candidate implementations. Require supported, reproducible Android/iOS integration, secure platform storage, exact-version maintenance commitments, interoperability evidence, license approval, and independent security review of the actual native/FFI build before production adoption.
 - Do not reuse the checked-in iOS crypto implementation, invent cryptographic primitives, or silently fall back to plaintext. Existing Android Signal code is not evidence of a supported MLS group implementation.
@@ -59,12 +61,12 @@ The classification is based on MessageDto, ChatDto, ChatParticipantDto, and Mess
 | Candidate | Evidence and fit | Decision / unresolved evidence |
 | --- | --- | --- |
 | MLS, RFC 9420 | IETF Proposed Standard for asynchronous group key establishment with forward secrecy and post-compromise security. It fits group/epoch/removal better than treating group chat as unrelated 1:1 sessions. | Lead protocol for evaluation only. Define credential binding, delivery service, storage, interop profile, metadata policy, and migration before approval. |
-| OpenMLS | Maintained Rust RFC 9420 implementation (repository metadata lists an MIT license). Its README lists Android/iOS targets as unsupported-but-built by CI, not tested supported targets. | Candidate for a thin native-bridge proof only. Reviewed docs do not establish supported KMP Swift/Kotlin integration or independent audit scope; verify with maintainers and security review. |
+| OpenMLS | Maintained Rust RFC 9420 implementation (MIT). SRLabs published a public assessment (report v1.2, March 11, 2026) of the openmls, traits, and basic_credential crates, reviewing repository commit a3402f2 from October 22, 2025. It found eight issues, including one High; the report excludes crypto providers, storage providers, and the proof-of-concept client/delivery service. The maintainer's May 27, 2026 summary says fixes for seven findings were published in OpenMLS 0.8.1 and 0.7.3, while one Low issue was still being addressed. Android/iOS targets remain listed as unsupported-but-built, not tested. | Preferred candidate for qualification. Confirm the exact release/fixes, open finding status, maintained mobile packaging, and app-level provider/storage/native bridge behavior; the library audit is not an audit of Synapse's integration. |
 | mls-rs | Rust RFC 9420 implementation (repository metadata lists Apache-2.0 and MIT licenses); README describes interoperability/security-focused tests. An mls-rs UniFFI wrapper exists and describes Kotlin/Swift binding generation. Its README explicitly says it has not received a full third-party security audit. | Candidate for qualification only, not production selection. Confirm supported mobile releases/artifacts, provider/storage behavior, version stability, audit scope, and Android↔iOS interoperability for the exact build. A wrapper's existence alone is not a support commitment. |
 | Current Signal stack | Repository pins org.whispersystems:signal-protocol-android:2.8.1; its API models per-recipient sessions. Current libsignal repository metadata lists AGPL-3.0. Its README says it is used by official Signal clients, external use is unsupported, and APIs may change; legal review is required. The older signal-protocol-java repository is archived. | Not an assumed cross-platform group/MLS solution. Reuse for legacy 1:1 compatibility needs a separate support, license, maintenance, and migration decision. |
 | Current iOS implementation | Checked-in code returns the literal MOCK_SIGNATURE, stores key material through Settings, and uses a custom shared-secret/AES path instead of the Android Signal implementation. | Rejected for private content. Replace only with an approved vetted protocol/library; do not patch or extend bespoke crypto. |
 
-No formal audit is claimed for this app or for OpenMLS. The mls-rs repository's own audit statement is cited below; upstream evidence is not a substitute for independent review of the selected version, provider, FFI, persistence, and app integration.
+An independent OpenMLS library assessment is evidenced below; it is not an audit of this app or of its provider, storage, FFI, persistence, backend, or mobile integration. The mls-rs README states that mls-rs has not received a full third-party security audit. Upstream library reviews do not replace app-level security qualification.
 
 ## Repository findings and blockers
 
@@ -97,7 +99,7 @@ No formal audit is claimed for this app or for OpenMLS. The mls-rs repository's 
 - [ ] Before any schema change, reconcile tracked migration source with the live schema, review relevant RLS/RPC behavior, and complete focused authorization verification. The current no-tests constraint leaves this gate unpassed.
 - [ ] Legacy history is visibly marked pre-E2EE; cutover readiness and added-member history policy are enforced; complete diff and review evidence are recorded.
 
-**Current gate result: NO-GO.** MLS is selected as the protocol direction only; no production library is selected. The repository blockers and missing mobile-support/security-review evidence stop dependent Phase 1 rollout. Do not substitute plaintext or custom cryptography.
+**Current gate result: NO-GO.** MLS is the protocol direction and OpenMLS is the lead qualification candidate, but no production library is approved. The audit scope, untested Android/iOS targets, missing app integration evidence, live authorization findings, and no-tests constraint stop dependent Phase 1 rollout. Do not substitute plaintext or custom cryptography.
 
 ## Primary references
 
@@ -115,6 +117,7 @@ No formal audit is claimed for this app or for OpenMLS. The mls-rs repository's 
 
 - [RFC 9420 — The Messaging Layer Security (MLS) Protocol](https://www.rfc-editor.org/rfc/rfc9420)
 - [OpenMLS README](https://github.com/openmls/openmls#readme) and [OpenMLS project site](https://openmls.tech/)
+- [OpenMLS SRLabs assessment announcement](https://blog.openmls.tech/posts/2026-05-27-independent-audit/), [full SRLabs report (PDF)](https://blog.openmls.tech/SRL-OpenMLS_security_assurance_assessment.pdf), and [OpenMLS v0.8.1 release](https://github.com/openmls/openmls/releases/tag/openmls-v0.8.1)
 - [mls-rs repository/README](https://github.com/awslabs/mls-rs) and [mls-rs UniFFI wrapper source](https://github.com/awslabs/mls-rs/blob/main/mls-rs-uniffi/src/lib.rs)
 - [Signal libsignal README](https://github.com/signalapp/libsignal#readme)
 - [Archived Signal Protocol Java repository](https://github.com/signalapp/libsignal-protocol-java)
