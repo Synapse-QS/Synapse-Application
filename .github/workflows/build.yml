@@ -16,7 +16,7 @@ on:
 jobs:
   build:
     name: 🔨 Build APKs
-    runs-on: ${{ vars.IS_USING_HOSTED_RUNNERS == 'true' && 'self-hosted' || 'blacksmith-4vcpu-ubuntu-2404' }}
+    runs-on: ubuntu-latest
     outputs:
       short_sha: ${{ steps.set_sha.outputs.short_sha }}
     steps:
@@ -88,7 +88,7 @@ jobs:
 
   aggregateAndSend:
     name: 📣 Send APKs to Telegram
-    runs-on: ${{ vars.IS_USING_HOSTED_RUNNERS == 'true' && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     needs: build
     steps:
       - name: 🛎️ Checkout
