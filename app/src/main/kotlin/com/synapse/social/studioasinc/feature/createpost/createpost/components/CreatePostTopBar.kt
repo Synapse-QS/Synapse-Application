@@ -44,8 +44,7 @@ import com.synapse.social.studioasinc.domain.model.FeelingActivity
 import com.synapse.social.studioasinc.domain.model.FeelingType
 import com.synapse.social.studioasinc.domain.model.LocationData
 import androidx.compose.ui.res.stringResource
-import com.synapse.social.studioasinc.feature.shared.components.ExpressiveButton
-import com.synapse.social.studioasinc.feature.shared.components.ButtonVariant
+import androidx.compose.ui.text.style.TextOverflow
 import com.synapse.social.studioasinc.feature.shared.theme.AccentBlue
 import com.synapse.social.studioasinc.feature.shared.theme.AccentYellow
 import com.synapse.social.studioasinc.feature.shared.theme.Sizes
@@ -105,13 +104,22 @@ fun CreatePostTopBar(
                 isScheduled -> stringResource(R.string.schedule)
                 else -> stringResource(R.string.post)
             }
-            ExpressiveButton(
+            Button(
                 onClick = onSubmitPost,
+                modifier = Modifier.height(Sizes.HeightMedium),
                 enabled = isEnabled,
-                text = buttonText,
-                variant = ButtonVariant.Filled,
-                modifier = Modifier.height(Sizes.HeightMedium)
-            )
+                shapes = ButtonDefaults.shapesFor(Sizes.HeightMedium),
+                contentPadding = PaddingValues(
+                    horizontal = Spacing.Medium,
+                    vertical = Spacing.SmallMedium
+                )
+            ) {
+                Text(
+                    text = buttonText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             Spacer(modifier = Modifier.width(Spacing.Medium))
         },
         colors = TopAppBarDefaults.topAppBarColors(

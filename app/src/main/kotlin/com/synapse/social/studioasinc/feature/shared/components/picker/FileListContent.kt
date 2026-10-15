@@ -39,7 +39,6 @@ import kotlin.math.log10
 import kotlin.math.pow
 import com.synapse.social.studioasinc.R
 import com.synapse.social.studioasinc.feature.shared.components.UserAvatar
-import com.synapse.social.studioasinc.feature.shared.components.animatedShape
 import com.synapse.social.studioasinc.feature.shared.theme.Sizes
 import com.synapse.social.studioasinc.feature.shared.theme.Spacing
 
@@ -170,7 +169,7 @@ private fun ContactListItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(ButtonDefaults.animatedShape())
+            .clip(ButtonDefaults.shape)
             .clickable(onClick = onClick)
             .padding(horizontal = Spacing.Medium, vertical = Spacing.SmallPlus),
         verticalAlignment = Alignment.CenterVertically

@@ -41,8 +41,6 @@ import com.synapse.social.studioasinc.domain.model.FeelingActivity
 import com.synapse.social.studioasinc.domain.model.FeelingType
 import com.synapse.social.studioasinc.domain.model.LocationData
 import androidx.compose.ui.res.stringResource
-import com.synapse.social.studioasinc.feature.shared.components.ExpressiveButton
-import com.synapse.social.studioasinc.feature.shared.components.ButtonVariant
 import com.synapse.social.studioasinc.feature.shared.theme.AccentBlue
 import com.synapse.social.studioasinc.feature.shared.theme.AccentYellow
 import com.synapse.social.studioasinc.feature.shared.theme.Sizes
