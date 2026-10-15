@@ -1,6 +1,6 @@
 # ADR 0001: Secure group chat and collaboration — E2EE architecture
 
-**Status:** Proposed; **NO-GO** for production implementation or activation until the unresolved decisions and gates below are approved. This is a Phase 0 design artifact, not a security audit or a claim that current E2EE paths are safe.
+**Status:** Phase 0 decision recorded (autonomous engineering recommendation); **NO-GO** for production implementation or activation. **Selected protocol direction:** IETF MLS (RFC 9420). **Production implementation:** none selected. This is not a security audit or a claim that current E2EE paths are safe.
 
 **Repository snapshot reviewed:** main at e5020efeddacc44a6e7a4c00964178052140e1d0. The ADR separates observed repository state from roadmap requirements and external library documentation.
 
@@ -11,10 +11,11 @@
 3. Classify private payloads versus operational metadata and set explicit no-go criteria.
 4. Leave application crypto, database schema, authorization policies, and deployment unchanged; create no PR.
 
-## Proposed decision (not yet owner-approved)
+## Decision
 
-- Do not select a production cryptographic library or enable new E2EE group content in this change. The evidence reviewed is insufficient to safely approve a specific Android+iOS implementation.
-- Use the IETF MLS standard (RFC 9420) as the lead protocol for the bounded evaluation because it is specifically a group key-establishment protocol. This is a recommendation for evaluation, not a final protocol/library selection.
+- Select the IETF MLS standard (RFC 9420) as the group-protocol direction. Its asynchronous group key establishment, forward secrecy, and post-compromise security fit the membership/epoch problem better than the current per-recipient 1:1 approach.
+- Do not select a production implementation library or enable new E2EE group content now. Based on reviewed primary documentation, neither shortlisted Rust candidate currently meets the evidence bar for production Android+iOS support plus independent review: OpenMLS lists mobile targets as built but unsupported/not tested; mls-rs has a UniFFI wrapper but explicitly lacks a full third-party security audit and its production mobile support is not established.
+- Record this as an evidence-based blocker and stop dependent rollout. Reopen library selection only after a candidate demonstrates maintained, supported Android+iOS artifacts, storage/FFI behavior, license approval, and independent review scope for the exact shipped build.
 - Evaluate OpenMLS and mls-rs as candidate implementations. Require supported, reproducible Android/iOS integration, secure platform storage, exact-version maintenance commitments, interoperability evidence, license approval, and independent security review of the actual native/FFI build before production adoption.
 - Do not reuse the checked-in iOS crypto implementation, invent cryptographic primitives, or silently fall back to plaintext. Existing Android Signal code is not evidence of a supported MLS group implementation.
 - Initial secure-group support is limited to Android and iOS. Web, desktop/JVM, and wasm clients must not send or receive new private group content until separately qualified. UI warnings alone do not satisfy this gate.
@@ -94,7 +95,7 @@ No formal audit is claimed for this app or for OpenMLS. The mls-rs repository's 
 - [ ] Actual backend schema, RLS/authorization boundaries, migration and rollback workflow are verified before database changes; focused authorization verification passes.
 - [ ] Legacy history is visibly marked pre-E2EE; cutover readiness and added-member history policy are enforced; complete diff and review evidence are recorded.
 
-**Current gate result: NO-GO.** Multiple repository blockers remain, and no library/protocol selection has been approved. If mobile-safe, maintainable, reviewable support cannot be established, stop dependent Phase 1 rollout rather than substituting plaintext or custom cryptography.
+**Current gate result: NO-GO.** MLS is selected as the protocol direction only; no production library is selected. The repository blockers and missing mobile-support/security-review evidence stop dependent Phase 1 rollout. Do not substitute plaintext or custom cryptography.
 
 ## Primary references
 
