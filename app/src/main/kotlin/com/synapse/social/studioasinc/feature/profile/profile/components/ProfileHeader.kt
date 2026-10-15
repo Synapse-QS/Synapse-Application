@@ -290,6 +290,11 @@ private fun ProfileActionButtons(
         horizontal = Spacing.Medium,
         vertical = Spacing.SmallMedium
     )
+    val addStoryInteractionSource = remember { MutableInteractionSource() }
+    val editProfileInteractionSource = remember { MutableInteractionSource() }
+    val followInteractionSource = remember { MutableInteractionSource() }
+    val messageInteractionSource = remember { MutableInteractionSource() }
+    val haptic = LocalHapticFeedback.current
 
     ButtonGroup(
         overflowIndicator = { menuState ->
@@ -300,75 +305,132 @@ private fun ProfileActionButtons(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (isOwnProfile) {
-            val addStoryInteractionSource = remember { MutableInteractionSource() }
-            val editProfileInteractionSource = remember { MutableInteractionSource() }
-
-            Button(
-                onClick = onAddStoryClick,
-                modifier = Modifier
-                    .weight(1f)
-                    .animateWidth(addStoryInteractionSource)
-                    .height(Spacing.ButtonHeight),
-                shapes = buttonShapes,
-                interactionSource = addStoryInteractionSource,
-                contentPadding = buttonContentPadding
-            ) {
-                Text(
-                    text = stringResource(R.string.add_story),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            FilledTonalButton(
-                onClick = onEditProfileClick,
-                modifier = Modifier
-                    .weight(1f)
-                    .animateWidth(editProfileInteractionSource)
-                    .height(Spacing.ButtonHeight),
-                shapes = buttonShapes,
-                interactionSource = editProfileInteractionSource,
-                contentPadding = buttonContentPadding
-            ) {
-                Text(
-                    text = stringResource(R.string.edit_profile),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        } else {
-            val followInteractionSource = remember { MutableInteractionSource() }
-            val messageInteractionSource = remember { MutableInteractionSource() }
-
-            AnimatedFollowButton(
-                isFollowing = isFollowing,
-                isFollowRequested = isFollowRequested,
-                isPrivate = isPrivate,
-                isLoading = isFollowLoading,
-                onClick = onFollowClick,
-                modifier = Modifier
-                    .weight(1f)
-                    .animateWidth(followInteractionSource)
-                    .height(Spacing.ButtonHeight),
-                interactionSource = followInteractionSource
+            customItem(
+                buttonGroupContent = {
+                    Button(
+                        onClick = onAddStoryClick,
+                        modifier = Modifier
+                            .weight(1f)
+                            .animateWidth(addStoryInteractionSource)
+                            .height(Spacing.ButtonHeight),
+                        shapes = buttonShapes,
+                        interactionSource = addStoryInteractionSource,
+                        contentPadding = buttonContentPadding
+                    ) {
+                        Text(
+                            text = stringResource(R.string.add_story),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                },
+                menuContent = { menuState ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.add_story)) },
+                        onClick = {
+                            menuState.dismiss()
+                            onAddStoryClick()
+                        }
+                    )
+                }
             )
 
-            OutlinedButton(
-                onClick = onMessageClick,
-                modifier = Modifier
-                    .weight(1f)
-                    .animateWidth(messageInteractionSource)
-                    .height(Spacing.ButtonHeight),
-                shapes = buttonShapes,
-                interactionSource = messageInteractionSource,
-                contentPadding = buttonContentPadding
-            ) {
-                Text(
-                    text = stringResource(R.string.m_message),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            customItem(
+                buttonGroupContent = {
+                    FilledTonalButton(
+                        onClick = onEditProfileClick,
+                        modifier = Modifier
+                            .weight(1f)
+                            .animateWidth(editProfileInteractionSource)
+                            .height(Spacing.ButtonHeight),
+                        shapes = buttonShapes,
+                        interactionSource = editProfileInteractionSource,
+                        contentPadding = buttonContentPadding
+                    ) {
+                        Text(
+                            text = stringResource(R.string.edit_profile),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                },
+                menuContent = { menuState ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.edit_profile)) },
+                        onClick = {
+                            menuState.dismiss()
+                            onEditProfileClick()
+                        }
+                    )
+                }
+            )
+        } else {
+            customItem(
+                buttonGroupContent = {
+                    AnimatedFollowButton(
+                        isFollowing = isFollowing,
+                        isFollowRequested = isFollowRequested,
+                        isPrivate = isPrivate,
+                        isLoading = isFollowLoading,
+                        onClick = onFollowClick,
+                        modifier = Modifier
+                            .weight(1f)
+                            .animateWidth(followInteractionSource)
+                            .height(Spacing.ButtonHeight),
+                        interactionSource = followInteractionSource
+                    )
+                },
+                menuContent = { menuState ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = when {
+                                    isFollowing -> stringResource(R.string.following)
+                                    isFollowRequested -> stringResource(R.string.follow_requested)
+                                    isPrivate -> stringResource(R.string.request_to_follow)
+                                    else -> stringResource(R.string.follow)
+                                }
+                            )
+                        },
+                        enabled = !isFollowLoading,
+                        onClick = {
+                            menuState.dismiss()
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onFollowClick()
+                        }
+                    )
+                }
+            )
+
+            customItem(
+                buttonGroupContent = {
+                    OutlinedButton(
+                        onClick = onMessageClick,
+                        modifier = Modifier
+                            .weight(1f)
+                            .animateWidth(messageInteractionSource)
+                            .height(Spacing.ButtonHeight),
+                        shapes = buttonShapes,
+                        interactionSource = messageInteractionSource,
+                        contentPadding = buttonContentPadding
+                    ) {
+                        Text(
+                            text = stringResource(R.string.m_message),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                },
+                menuContent = { menuState ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.m_message)) },
+                        onClick = {
+                            menuState.dismiss()
+                            onMessageClick()
+                        }
+                    )
+                }
+            )
         }
     }
 }
